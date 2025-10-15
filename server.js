@@ -124,3 +124,4 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`LadleTrack server running on http://localhost:${PORT}`);
     console.log(`Listening for ESP32 data at http://<YOUR_SERVER_IP>:${PORT}/api/ladle-data`);
 });
+
