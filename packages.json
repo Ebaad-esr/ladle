@@ -1,0 +1,15 @@
+{
+  "name": "ladletrack-server",
+  "version": "1.0.0",
+  "description": "A local Node.js server for the LadleTrack-2FA system.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "author": "Steel Flow",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.14.2"
+  }
+}
