@@ -1,0 +1,47 @@
+:root {
+    --ui-dark-bg: #0a0a0a; /* Black background */
+    --ui-card-bg: #1c1c1c; /* Darker card background */
+    --ui-border: #2c2c2c; /* Darker border color */
+    --ui-text-primary: #f9fafb;
+    --ui-text-secondary: #9ca3af;
+    --ui-accent: #f59e0b; /* Accent Orange */
+    --ui-success: #10b981; /* Green */
+    --ui-warning: #f59e0b; /* Orange/Yellow for warnings */
+}
+
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', sans-serif; background-color: var(--ui-dark-bg); color: var(--ui-text-primary); }
+
+.hero-section { position: relative; background-color: transparent; overflow: hidden; }
+#particle-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
+.hero-content-wrapper { position: relative; z-index: 1; background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0) 100%); }
+
+#app-content { background-color: transparent; }
+.header-title { color: var(--ui-text-primary); }
+.section-title { color: var(--ui-accent); font-weight: 700; font-size: 1.25rem; }
+
+.nav-link {
+    color: var(--ui-text-secondary);
+    padding: 8px 16px; border-radius: 6px; transition: all 0.2s;
+    cursor: pointer; border: 1px solid transparent;
+}
+.nav-link:hover { color: var(--ui-text-primary); background-color: var(--ui-card-bg); }
+.nav-link.active {
+    color: var(--ui-accent);
+    font-weight: 600;
+    border-color: var(--ui-accent);
+    background-color: rgba(245, 158, 11, 0.1);
+}
+
+.card {
+    background-color: var(--ui-card-bg);
+    border: 1px solid var(--ui-border);
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+}
+
+.stat-card {
+    background-color: rgba(28, 28, 28, 0.7); /* Adjusted for black theme */
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--ui-border);
+}
