@@ -93,7 +93,8 @@ document.addEventListener('DOMContentLoaded', () => {
     heroViewProposalBtn.addEventListener('click', (e) => { e.preventDefault(); showPage(pageProposal, navProposal); });
 
     // --- WEBSOCKET CONNECTION ---
-    const socket = new WebSocket(`ws://${window.location.host}`);
+    const socketProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const socket = new WebSocket(`${socketProtocol}//${window.location.host}`);
 
     socket.onopen = () => {
         console.log('WebSocket connection established.');
@@ -103,9 +104,10 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.onmessage = (message) => {
         const data = JSON.parse(message.data);
 
-        if (data.type === 'initial-state') {
-            ladles = data.payload.ladles;
-            plantAreas = data.payload.plantAreas;
+        if (data.type === 'initial_state') {
+            const payload = data.payload || data; 
+            ladles = payload.ladles;
+            plantAreas = payload.plantAreas;
             initializeDashboard();
         } else if (data.type === 'update') {
             handleUpdate(data.event, data.updatedLadle);
@@ -115,7 +117,6 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.onclose = () => {
         console.log('WebSocket connection closed.');
         logEvent('Disconnected from server. Trying to reconnect...', 'error');
-        // Simple reconnect logic
         setTimeout(() => {
             window.location.reload();
         }, 5000);
@@ -123,6 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- UI UPDATE FUNCTIONS ---
     function initializeDashboard() {
+        if (!plantAreas || !ladles) return;
         plantAreasContainer.innerHTML = plantAreas.map(area => `<div class="card p-4" id="area-${area.replace(/\s+/g, '-')}"><h3 class="font-semibold text-ui-text-primary">${area}</h3><p class="text-xs mt-1 text-ui-text-secondary">LADLES PRESENT:</p><div class="ladle-list text-ui-accent font-semibold mt-2 space-y-1 text-sm"></div></div>`).join('');
         ladleSelectEl.innerHTML = ladles.map(ladle => `<option value="${ladle.id}">${ladle.id}</option>`).join('');
         updateUI();
@@ -130,13 +132,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function handleUpdate(event, updatedLadle) {
-        // Find and update the ladle in the local array
         const ladleIndex = ladles.findIndex(l => l.id === updatedLadle.id);
         if (ladleIndex !== -1) {
             ladles[ladleIndex] = updatedLadle;
+        } else {
+            ladles.push(updatedLadle);
+            const option = document.createElement('option');
+            option.value = updatedLadle.id;
+            option.textContent = updatedLadle.id;
+            ladleSelectEl.appendChild(option);
         }
 
-        // Log the event
         let logMessage;
         if (event.isMatch) {
             logMessage = `Ladle <span class="font-bold text-white">${event.ladleId}</span> moved: ${event.oldLocation} → <span class="font-bold text-white">${event.newLocation}</span>. 2FA Match.`;
@@ -145,9 +151,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         logEvent(logMessage, event.type);
 
-        // Refresh the entire UI
         updateUI();
-        displaySelectedLadleJourney();
+        if (ladleSelectEl.value === updatedLadle.id) {
+            displaySelectedLadleJourney();
+        }
     }
 
     function displaySelectedLadleJourney() {
@@ -161,9 +168,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateUI() {
-        // Clear all ladle lists
+        if (!ladles) return;
         document.querySelectorAll('.ladle-list').forEach(list => list.innerHTML = '');
-        // Repopulate ladle lists
         ladles.forEach(ladle => {
             const areaCard = document.getElementById(`area-${ladle.location.replace(/\s+/g, '-')}`);
             if (areaCard) {
@@ -173,7 +179,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Update stats
         const inCirculation = ladles.filter(l => l.location !== 'Maintenance Yard').length;
         totalLadlesEl.textContent = ladles.length;
         inCirculationLadlesEl.textContent = inCirculation;
@@ -198,17 +203,73 @@ document.addEventListener('DOMContentLoaded', () => {
 
     ladleSelectEl.addEventListener('change', displaySelectedLadleJourney);
     
-    // Setup Footer (as it's now shared)
     const footerHTML = `
         <footer class="mt-12 pt-8 border-t" style="border-color: var(--ui-border);">
             <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 text-sm">
-                <div class="space-y-4"><h2 class="text-2xl font-bold text-ui-accent tracking-wider">STEEL FLOW</h2><p class="text-ui-text-secondary">An automated system for tracking hot metal and steel by capturing ladle numbers to display real-time location.</p><div class="card p-4 flex items-center space-x-4 max-w-xs"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 27 18" width="40"><path fill="#f93" d="M0 0h27v6H0z"/><path fill="#fff" d="M0 6h27v6H0z"/><path fill="#128807" d="M0 12h27v6H0z"/><path fill="#000080" d="M13.5 9a2.25 2.25 0 1 1 0-4.5 2.25 2.25 0 0 1 0 4.5z"/><path fill="#fff" d="M13.5 7.5a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5z"/></svg><div><p class="font-semibold">Ministry of Steel</p><p class="text-xs text-ui-text-secondary">Government of India</p></div></div></div>
-                <div class="space-y-4 md:mx-auto"><h3 class="font-bold tracking-wider uppercase">Explore</h3><ul class="space-y-2 text-ui-text-secondary"><li><a href="#" class="footer-nav-dashboard hover:text-ui-accent">Live Dashboard</a></li><li><a href="#" class="footer-nav-proposal hover:text-ui-accent">Project Proposal</a></li></ul></div>
-                <div class="card p-6"><h3 class="font-bold tracking-wider uppercase">Contact Team Steel Flow</h3><div class="mt-4 space-y-2 text-ui-text-secondary"><p><strong>PS ID:</strong> SIH25187</p><p>Pune, Maharashtra, India</p><a href="mailto:sih2025.steelflow@email.com" class="text-ui-accent hover:underline">sih2025.steelflow@email.com</a></div><h3 class="font-bold tracking-wider uppercase mt-6">Stay Updated</h3><div class="mt-2 flex"><input type="email" placeholder="your.email@domain.com" class="w-full bg-gray-900 border-gray-600 rounded-l-md py-2 px-3 focus:outline-none focus:ring-1 focus:ring-ui-accent text-sm"><button class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded-r-md transition-colors text-sm">Subscribe</button></div></div>
+                <div class="space-y-4">
+                    <h2 class="text-2xl font-bold text-ui-accent tracking-wider">STEEL FLOW</h2>
+                    <p class="text-ui-text-secondary">An automated system for tracking hot metal and steel by capturing ladle numbers to display real-time location.</p>
+                    <div class="card p-4 flex items-center space-x-4 max-w-xs">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 27 18" width="40"><path fill="#f93" d="M0 0h27v6H0z"/><path fill="#fff" d="M0 6h27v6H0z"/><path fill="#128807" d="M0 12h27v6H0z"/><path fill="#000080" d="M13.5 9a2.25 2.25 0 1 1 0-4.5 2.25 2.25 0 0 1 0 4.5z"/><path fill="#fff" d="M13.5 7.5a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5z"/></svg>
+                        <div><p class="font-semibold">Ministry of Steel</p><p class="text-xs text-ui-text-secondary">Government of India</p></div>
+                    </div>
+                </div>
+                <div class="space-y-4 md:mx-auto">
+                    <h3 class="font-bold tracking-wider uppercase">Explore</h3>
+                    <ul class="space-y-2 text-ui-text-secondary">
+                        <li><a href="#" class="footer-nav-dashboard hover:text-ui-accent">Live Dashboard</a></li>
+                        <li><a href="#" class="footer-nav-proposal hover:text-ui-accent">Project Proposal</a></li>
+                    </ul>
+                </div>
+                <div class="card p-6">
+                    <h3 class="font-bold tracking-wider uppercase">Contact Team Steel Flow</h3>
+                    <div class="mt-4 space-y-2 text-ui-text-secondary">
+                        <p><strong>PS ID:</strong> SIH25187</p>
+                        <p>SSGMCE, Shegaon, Maharashtra, India</p>
+                        <a href="mailto:tayadeatharva12@email.com" class="text-ui-accent hover:underline">tayadeatharva12@email.com</a>
+                    </div>
+                    <h3 class="font-bold tracking-wider uppercase mt-6">Stay Updated</h3>
+                    <div class="mt-2 flex">
+                        <input type="email" id="subscribe-email" placeholder="your.email@domain.com" class="w-full bg-gray-900 border-gray-600 rounded-l-md py-2 px-3 focus:outline-none focus:ring-1 focus:ring-ui-accent text-sm">
+                        <button id="subscribe-button" class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded-r-md transition-colors text-sm">Subscribe</button>
+                    </div>
+                </div>
             </div>
             <div class="mt-8 pt-4 border-t" style="border-color: var(--ui-border);"><div class="text-center text-xs text-ui-text-secondary"><p>© 2025 Steel Flow • Smart India Hackathon 2025</p><p class="mt-1">Developed by <span class="font-semibold">Team Steel Flow</span></p></div></div>
         </footer>`;
     appFooter.innerHTML = footerHTML;
-    document.querySelectorAll('.footer-nav-dashboard').forEach(el => el.addEventListener('click', (e) => { e.preventDefault(); showPage(pageDashboard, navDashboard) }));
-    document.querySelectorAll('.footer-nav-proposal').forEach(el => el.addEventListener('click', (e) => { e.preventDefault(); showPage(pageProposal, navProposal) }));
+
+    // --- NEW FOOTER INTERACTIVITY ---
+    function setupFooterInteractivity() {
+        // Dashboard/Proposal links in footer
+        document.querySelectorAll('.footer-nav-dashboard').forEach(el => el.addEventListener('click', (e) => { e.preventDefault(); showPage(pageDashboard, navDashboard) }));
+        document.querySelectorAll('.footer-nav-proposal').forEach(el => el.addEventListener('click', (e) => { e.preventDefault(); showPage(pageProposal, navProposal) }));
+
+        // Subscription form logic
+        const subscribeButton = document.getElementById('subscribe-button');
+        const subscribeEmail = document.getElementById('subscribe-email');
+
+        if (subscribeButton && subscribeEmail) {
+            subscribeButton.addEventListener('click', () => {
+                const email = subscribeEmail.value;
+                // Simple email validation
+                if (email && email.includes('@')) {
+                    subscribeButton.textContent = 'Subscribed!';
+                    subscribeButton.style.backgroundColor = 'var(--ui-success)';
+                    subscribeButton.disabled = true;
+                    subscribeEmail.value = '';
+                } else {
+                    // Optional: Add feedback for invalid email
+                    subscribeEmail.style.outline = '1px solid var(--ui-warning)';
+                    setTimeout(() => {
+                        subscribeEmail.style.outline = 'none';
+                    }, 2000);
+                }
+            });
+        }
+    }
+    
+    setupFooterInteractivity();
 });
+
+
