@@ -1,21 +1,20 @@
-// server.js
-// This is the heart of your local application. It serves the webpage,
-// listens for ESP32 data, and pushes real-time updates to the dashboard.
-
 const express = require('express');
 const http = require('http');
+const WebSocket = require('ws');
 const path = require('path');
-const { WebSocketServer } = require('ws');
+const os = require('os');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+const wss = new WebSocket.Server({ server });
 
-const PORT = 3000;
+app.use(express.json({ limit: '5mb' })); // Allow large image payloads
+app.use(express.static(path.join(__dirname, 'public')));
 
-// --- DATA STORE (In-memory for this local version) ---
-// This represents the current state of your steel plant.
+// --- INITIAL DATA STATE & SEQUENCES ---
 const plantAreas = ['TLC Pit', 'Converter', 'Ladle Prep Bay', 'LF-1', 'RH Unit', 'Caster Machine', 'Slag Dumping', 'Maintenance Yard'];
+const mainSequence = ['Ladle Prep Bay', 'TLC Pit', 'Converter', 'RH Unit', 'LF-1', 'Caster Machine']; // Maintenance is the end of the line before restart
+
 let ladles = [
     { id: 'L-101', number: 101, location: 'Maintenance Yard', journey: [] },
     { id: 'L-245', number: 245, location: 'Caster Machine', journey: [] },
@@ -23,105 +22,115 @@ let ladles = [
     { id: 'L-418', number: 418, location: 'Slag Dumping', journey: [] },
     { id: 'L-550', number: 550, location: 'Converter', journey: [] },
     { id: 'L-621', number: 621, location: 'Maintenance Yard', journey: [] },
-    { id: 'L-789', number: 789, location: 'Slag Dumping', journey: [] },
+    { id: 'L-789', number: 789, location: 'TLC Pit', journey: [] },
 ];
 
-// Initialize journeys
-ladles.forEach(l => {
-    l.journey.push({
-        location: l.location,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+// Initialize journey history
+ladles.forEach(ladle => {
+    ladle.journey.push({
+        location: ladle.location,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit'})
     });
 });
 
-
-// --- MIDDLEWARE ---
-// Serve the static files (HTML, CSS, JS) from the 'public' directory
-app.use(express.static(path.join(__dirname, 'public')));
-// Allow the server to parse incoming JSON data, with a high limit for base64 images
-app.use(express.json({ limit: '10mb' }));
-
-
 // --- API ENDPOINT FOR ESP32 ---
-// This is where your ESP32 devices will send their data.
 app.post('/api/ladle-data', (req, res) => {
-    const { rfid, image, location } = req.body; // Location is sent by the station
-    
-    console.log(`Received data from ESP32 at ${location}: RFID=${rfid}`);
-
+    const { rfid, image, location } = req.body;
     if (!rfid || !location) {
         return res.status(400).send({ message: 'Missing rfid or location data.' });
     }
-
-    const ladle = ladles.find(l => l.id === rfid);
+    console.log(`Data received: RFID=${rfid}, Location=${location}`);
+    let ladle = ladles.find(l => l.id === rfid);
     if (!ladle) {
-        return res.status(404).send({ message: 'Ladle not found.' });
+        ladle = { id: rfid, number: parseInt(rfid.split('-')[1]), location: 'Maintenance Yard', journey: [] };
+        ladles.push(ladle);
     }
-
-    // --- 2FA LOGIC SIMULATION ---
-    // In a real system, you would run an OCR process on the 'image' data.
-    // Here, we simulate it with a 90% chance of success.
-    const isMatch = Math.random() > 0.1;
-    const ocrResult = isMatch ? ladle.number : Math.floor(Math.random() * 900) + 100;
-    
-    // Update ladle's location
     const oldLocation = ladle.location;
     ladle.location = location;
-
-    // Record the journey
+    const isMatch = Math.random() > 0.1;
+    const ocrResult = isMatch ? ladle.number : Math.floor(Math.random() * 900) + 100;
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     ladle.journey.push({ location, timestamp });
-
-    // Create a log event object
-    const event = {
-        ladleId: ladle.id,
-        oldLocation,
-        newLocation: location,
-        isMatch,
-        ocrResult,
-        timestamp,
-        type: isMatch ? 'success' : 'error'
-    };
-    
-    // Broadcast the update to all connected dashboard clients
+    const event = { ladleId: ladle.id, oldLocation, newLocation: location, isMatch, ocrResult, timestamp, type: isMatch ? 'success' : 'error' };
     broadcast({ type: 'update', event, updatedLadle: ladle });
-
     res.status(200).send({ message: 'Data received and processed successfully.' });
 });
 
+// --- SEQUENTIAL MOVEMENT SIMULATION ---
+function simulateLadleMovement() {
+    // Select any ladle to potentially move
+    if (ladles.length === 0) return;
+    
+    const ladleToMove = ladles[Math.floor(Math.random() * ladles.length)];
+    const oldLocation = ladleToMove.location;
+    let newLocation;
+
+    const currentIndex = mainSequence.indexOf(oldLocation);
+
+    // Determine the next location based on the sequence
+    if (oldLocation === 'Maintenance Yard') {
+        // If in maintenance, the next step is to go back to the prep bay
+        newLocation = 'Ladle Prep Bay';
+    } else if (oldLocation === 'Converter' && Math.random() < 0.3) {
+        // 30% chance to go to Slag Dumping from Converter
+        newLocation = 'Slag Dumping';
+    } else if (oldLocation === 'Slag Dumping') {
+        // After slag dumping, return to the start of the process
+        newLocation = 'Ladle Prep Bay';
+    } else if (currentIndex !== -1 && currentIndex < mainSequence.length - 1) {
+        // Move to the next step in the main sequence
+        newLocation = mainSequence[currentIndex + 1];
+    } else {
+        // If at the end of the sequence (Caster Machine) or in a state not in the main sequence, send to Maintenance
+        newLocation = 'Maintenance Yard';
+    }
+    
+    ladleToMove.location = newLocation;
+
+    // --- 2FA LOGIC & BROADCAST ---
+    const isMatch = Math.random() > 0.1;
+    const ocrResult = isMatch ? ladleToMove.number : Math.floor(Math.random() * 900) + 100;
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    ladleToMove.journey.push({ location: newLocation, timestamp });
+    const event = { ladleId: ladleToMove.id, oldLocation, newLocation, isMatch, ocrResult, timestamp, type: isMatch ? 'success' : 'error' };
+    
+    console.log(`SIMULATION: Ladle ${event.ladleId} moved sequentially to ${event.newLocation}`);
+    broadcast({ type: 'update', event, updatedLadle: ladleToMove });
+}
+
+
+setInterval(simulateLadleMovement, 4000);
 
 // --- WEBSOCKET LOGIC ---
-// Manages real-time communication with the dashboard.
 wss.on('connection', (ws) => {
-    console.log('Dashboard client connected.');
-
-    // When a new client connects, send them the current full state of the plant.
-    ws.send(JSON.stringify({
-        type: 'initial-state',
-        payload: {
-            ladles,
-            plantAreas
-        }
-    }));
-
-    ws.on('close', () => {
-        console.log('Dashboard client disconnected.');
-    });
+    console.log('Dashboard connected.');
+    ws.send(JSON.stringify({ type: 'initial_state', payload: { ladles, plantAreas } }));
+    ws.on('close', () => { console.log('Dashboard disconnected.'); });
 });
 
-// Function to send data to all connected clients
 function broadcast(data) {
-    const jsonData = JSON.stringify(data);
     wss.clients.forEach((client) => {
-        if (client.readyState === client.OPEN) {
-            client.send(jsonData);
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify(data));
         }
     });
 }
 
-// --- START THE SERVER ---
-server.listen(PORT, '0.0.0.0', () => {
+// --- SERVER STARTUP ---
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
     console.log(`LadleTrack server running on http://localhost:${PORT}`);
-    console.log(`Listening for ESP32 data at http://<YOUR_SERVER_IP>:${PORT}/api/ladle-data`);
+    const networkInterfaces = os.networkInterfaces();
+    let serverIp = 'YOUR_SERVER_IP';
+    for (const name of Object.keys(networkInterfaces)) {
+        for (const net of networkInterfaces[name]) {
+            if (net.family === 'IPv4' && !net.internal) {
+                serverIp = net.address;
+                break;
+            }
+        }
+        if (serverIp !== 'YOUR_SERVER_IP') break;
+    }
+    console.log(`Listening for ESP32 data at http://${serverIp}:${PORT}/api/ladle-data`);
 });
 
