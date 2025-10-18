@@ -3,11 +3,80 @@
 // for demonstration purposes on platforms like Vercel.
 
 document.addEventListener('DOMContentLoaded', () => {
+    // --- PARTICLE EFFECT SETUP ---
+    const canvas = document.getElementById('particle-canvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+
+    function resizeCanvas() {
+        const heroSection = document.querySelector('.hero-section');
+        if (heroSection) {
+            canvas.width = heroSection.offsetWidth;
+            canvas.height = heroSection.offsetHeight;
+        }
+    }
+    
+    // Initial and resize setup
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+
+    class Particle {
+        constructor() {
+            this.x = Math.random() * canvas.width;
+            this.y = canvas.height + Math.random() * 100;
+            this.size = Math.random() * 2.5 + 0.5;
+            this.speedY = Math.random() * 1.5 + 0.5;
+            this.speedX = (Math.random() - 0.5) * 0.5;
+            this.opacity = Math.random() * 0.5 + 0.5;
+        }
+        update() {
+            this.y -= this.speedY;
+            this.x += this.speedX;
+            if (this.y < 0) {
+                this.y = canvas.height + 10;
+                this.x = Math.random() * canvas.width;
+            }
+        }
+        draw() {
+            ctx.beginPath();
+            ctx.fillStyle = `rgba(245, 158, 11, ${this.opacity})`;
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    function initParticles() {
+        const particleCount = window.innerWidth < 768 ? 100 : 200;
+        particles = []; // Clear existing particles
+        for (let i = 0; i < particleCount; i++) {
+            particles.push(new Particle());
+        }
+    }
+
+    function animateParticles() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particles.forEach(p => {
+            p.update();
+            p.draw();
+        });
+        requestAnimationFrame(animateParticles);
+    }
+    
+    initParticles();
+    animateParticles();
+    window.addEventListener('resize', () => {
+        resizeCanvas();
+        initParticles();
+    });
+
+
     // --- PAGE ELEMENTS & NAVIGATION ---
     const navDashboard = document.getElementById('nav-dashboard');
     const navProposal = document.getElementById('nav-proposal');
     const pageDashboard = document.getElementById('dashboard-page');
     const pageProposal = document.getElementById('proposal-page');
+    const heroViewProposalBtn = document.getElementById('hero-view-proposal');
     const appFooter = document.getElementById('app-footer');
 
     const plantAreasContainer = document.getElementById('plant-areas');
@@ -18,24 +87,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const ladleSelectEl = document.getElementById('ladle-select');
     const journeyTimelineEl = document.getElementById('journey-timeline');
 
-    // --- SIMULATION DATA (MOVED FROM SERVER TO CLIENT) ---
+    // --- SIMULATION DATA ---
     const plantAreas = ['TLC Pit', 'Converter', 'Ladle Prep Bay', 'LF-1', 'RH Unit', 'Caster Machine', 'Slag Dumping', 'Maintenance Yard'];
     const mainSequence = ['Ladle Prep Bay', 'TLC Pit', 'Converter', 'RH Unit', 'LF-1', 'Caster Machine'];
     let ladles = [];
     for (let i = 1; i <= 20; i++) {
         const ladleNumber = 100 + i;
-        ladles.push({
-            id: `L-${ladleNumber}`,
-            number: ladleNumber,
-            location: plantAreas[Math.floor(Math.random() * plantAreas.length)],
-            journey: []
-        });
+        ladles.push({ id: `L-${ladleNumber}`, number: ladleNumber, location: plantAreas[Math.floor(Math.random() * plantAreas.length)], journey: [] });
     }
     ladles.forEach(ladle => {
-        ladle.journey.push({
-            location: ladle.location,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit'})
-        });
+        ladle.journey.push({ location: ladle.location, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit'}) });
     });
 
 
@@ -46,10 +107,17 @@ document.addEventListener('DOMContentLoaded', () => {
         navProposal.classList.remove('active');
         pageToShow.classList.remove('hidden');
         navToActivate.classList.add('active');
+        
+        // When switching to proposal, we need to make sure the main app is in view
+        if(pageToShow === pageProposal){
+             document.getElementById('app-content').scrollIntoView({ behavior: 'smooth' });
+        }
     }
     
     navDashboard.addEventListener('click', () => showPage(pageDashboard, navDashboard));
     navProposal.addEventListener('click', () => showPage(pageProposal, navProposal));
+    heroViewProposalBtn.addEventListener('click', (e) => { e.preventDefault(); showPage(pageProposal, navProposal); });
+
 
     // --- UI UPDATE FUNCTIONS ---
     function initializeDashboard() {
@@ -105,7 +173,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (eventLog.children.length > 50) eventLog.lastChild.remove();
     }
 
-    // --- CLIENT-SIDE SIMULATION LOGIC ---
     function simulateLadleMovement() {
         if (ladles.length === 0) return;
         const ladleToMove = ladles[Math.floor(Math.random() * ladles.length)];
@@ -113,41 +180,23 @@ document.addEventListener('DOMContentLoaded', () => {
         let newLocation;
         const currentIndex = mainSequence.indexOf(oldLocation);
 
-        if (oldLocation === 'Maintenance Yard') {
-            newLocation = 'Ladle Prep Bay';
-        } else if (oldLocation === 'Converter' && Math.random() < 0.25) {
-            newLocation = 'Slag Dumping';
-        } else if (oldLocation === 'Slag Dumping') {
-            newLocation = 'Ladle Prep Bay';
-        } else if (currentIndex === mainSequence.length - 1) {
-            newLocation = 'Maintenance Yard';
-        } else if (currentIndex !== -1) {
-            newLocation = mainSequence[currentIndex + 1];
-        } else {
-            newLocation = 'Ladle Prep Bay';
-        }
+        if (oldLocation === 'Maintenance Yard') { newLocation = 'Ladle Prep Bay';
+        } else if (oldLocation === 'Converter' && Math.random() < 0.25) { newLocation = 'Slag Dumping';
+        } else if (oldLocation === 'Slag Dumping') { newLocation = 'Ladle Prep Bay';
+        } else if (currentIndex === mainSequence.length - 1) { newLocation = 'Maintenance Yard';
+        } else if (currentIndex !== -1) { newLocation = mainSequence[currentIndex + 1];
+        } else { newLocation = 'Ladle Prep Bay'; }
         
         ladleToMove.location = newLocation;
-        ladleToMove.journey.push({ 
-            location: newLocation, 
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) 
-        });
-        
+        ladleToMove.journey.push({ location: newLocation, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) });
         const isMatch = Math.random() > 0.1;
         const ocrResult = isMatch ? ladleToMove.number : Math.floor(Math.random() * 900) + 100;
-        
         let logMessage;
-        if (isMatch) {
-            logMessage = `Ladle <span class="font-bold">${ladleToMove.id}</span> moved: ${oldLocation} → <span class="font-bold">${newLocation}</span>. 2FA Match.`;
-        } else {
-            logMessage = `MISMATCH on Ladle <span class="font-bold">${ladleToMove.id}</span> at ${newLocation}! RFID=${ladleToMove.id}, OCR=${ocrResult}.`;
-        }
+        if (isMatch) { logMessage = `Ladle <span class="font-bold">${ladleToMove.id}</span> moved: ${oldLocation} → <span class="font-bold">${newLocation}</span>. 2FA Match.`;
+        } else { logMessage = `MISMATCH on Ladle <span class="font-bold">${ladleToMove.id}</span> at ${newLocation}! RFID=${ladleToMove.id}, OCR=${ocrResult}.`; }
         logEvent(logMessage, isMatch ? 'success' : 'error');
-        
         updateUI();
-        if (ladleSelectEl.value === ladleToMove.id) {
-            displaySelectedLadleJourney();
-        }
+        if (ladleSelectEl.value === ladleToMove.id) { displaySelectedLadleJourney(); }
     }
 
     ladleSelectEl.addEventListener('change', displaySelectedLadleJourney);
@@ -191,10 +240,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function setupFooterInteractivity() {
         document.querySelectorAll('.footer-nav-dashboard').forEach(el => el.addEventListener('click', (e) => { e.preventDefault(); showPage(pageDashboard, navDashboard) }));
         document.querySelectorAll('.footer-nav-proposal').forEach(el => el.addEventListener('click', (e) => { e.preventDefault(); showPage(pageProposal, navProposal) }));
-
         const subscribeButton = document.getElementById('subscribe-button');
         const subscribeEmail = document.getElementById('subscribe-email');
-
         if (subscribeButton && subscribeEmail) {
             subscribeButton.addEventListener('click', () => {
                 const email = subscribeEmail.value;
@@ -205,17 +252,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     subscribeEmail.value = '';
                 } else {
                     subscribeEmail.style.outline = '1px solid var(--ui-warning)';
-                    setTimeout(() => {
-                        subscribeEmail.style.outline = 'none';
-                    }, 2000);
+                    setTimeout(() => { subscribeEmail.style.outline = 'none'; }, 2000);
                 }
             });
         }
     }
-    
     setupFooterInteractivity();
-
-    // --- START THE SIMULATION ---
     initializeDashboard();
     setInterval(simulateLadleMovement, 3000);
 });
