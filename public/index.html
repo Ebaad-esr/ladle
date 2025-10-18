@@ -1,109 +1,275 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Steel Flow | Smart Ladle Management System</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body class="antialiased">
+// public/script.js
+// This script runs in the browser. It connects to the Node.js server via WebSocket,
+// receives real-time data, and updates the dashboard without needing to refresh the page.
 
-    <canvas id="particle-canvas"></canvas>
+document.addEventListener('DOMContentLoaded', () => {
+    // --- PARTICLE EFFECT SETUP ---
+    const canvas = document.getElementById('particle-canvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
 
-    <section class="hero-section min-h-screen flex flex-col text-white">
-        <div class="hero-content-wrapper flex flex-col flex-grow">
-            <header class="w-full p-4 sm:p-6 lg:p-8 flex justify-between items-center">
-                 <div class="flex items-center space-x-3">
-                     <svg class="w-8 h-8 text-orange-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0-0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.047 8.287 8.287 0 0 0 9 9.601a8.983 8.983 0 0 1 3.362-3.797 8.333 8.333 0 0 1 3 1.41z" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18" /></svg>
-                    <h1 class="text-2xl font-bold">STEEL FLOW</h1>
-                 </div>
-                 <div><a href="#app-content" class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded-md transition-colors">View Live Dashboard</a></div>
-            </header>
-            <div class="flex-grow flex items-center justify-center">
-                <div class="text-center max-w-4xl mx-auto px-4">
-                    <p class="text-lg font-bold text-orange-500 flex items-center justify-center"><span class="relative flex h-3 w-3 mr-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span></span>Team ID: SIH25187</p>
-                    <h2 class="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight mt-2">By Team Steel Flow <br/> LadleTrack: AI-Powered Ladle Tracking</h2>
-                    <p class="mt-6 text-lg sm:text-xl text-gray-300 max-w-2xl mx-auto">A robust Two-Factor Authentication (2FA) system using RFID and AI Vision to eliminate errors and enhance safety in steel plant operations.</p>
-                    <div class="mt-8 flex justify-center gap-4">
-                         <a href="#app-content" class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-6 rounded-md transition-colors text-lg">Go to Dashboard</a>
-                        <a href="#proposal-page" id="hero-view-proposal" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-md transition-colors text-lg">View Proposal</a>
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    class Particle {
+        constructor() {
+            this.x = Math.random() * canvas.width;
+            this.y = canvas.height + Math.random() * 100;
+            this.size = Math.random() * 2.5 + 0.5;
+            this.speedY = Math.random() * 1.5 + 0.5;
+            this.speedX = (Math.random() - 0.5) * 0.5;
+            this.opacity = Math.random() * 0.5 + 0.5;
+        }
+        update() {
+            this.y -= this.speedY;
+            this.x += this.speedX;
+            if (this.y < 0) {
+                this.y = canvas.height + 10;
+                this.x = Math.random() * canvas.width;
+            }
+        }
+        draw() {
+            ctx.beginPath();
+            ctx.fillStyle = `rgba(245, 158, 11, ${this.opacity})`;
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    function initParticles() {
+        const particleCount = window.innerWidth < 768 ? 100 : 200;
+        for (let i = 0; i < particleCount; i++) {
+            particles.push(new Particle());
+        }
+    }
+
+    function animateParticles() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particles.forEach(p => {
+            p.update();
+            p.draw();
+        });
+        requestAnimationFrame(animateParticles);
+    }
+    initParticles();
+    animateParticles();
+
+    // --- PAGE ELEMENTS & NAVIGATION ---
+    const navDashboard = document.getElementById('nav-dashboard');
+    const navProposal = document.getElementById('nav-proposal');
+    const pageDashboard = document.getElementById('dashboard-page');
+    const pageProposal = document.getElementById('proposal-page');
+    const heroViewProposalBtn = document.getElementById('hero-view-proposal');
+    const appFooter = document.getElementById('app-footer');
+
+    const plantAreasContainer = document.getElementById('plant-areas');
+    const eventLog = document.getElementById('event-log');
+    const totalLadlesEl = document.getElementById('total-ladles');
+    const inCirculationLadlesEl = document.getElementById('in-circulation-ladles');
+    const maintenanceLadlesEl = document.getElementById('maintenance-ladles');
+    const ladleSelectEl = document.getElementById('ladle-select');
+    const journeyTimelineEl = document.getElementById('journey-timeline');
+
+    let ladles = [];
+    let plantAreas = [];
+
+    function showPage(pageToShow, navToActivate) {
+        pageDashboard.classList.add('hidden');
+        pageProposal.classList.add('hidden');
+        navDashboard.classList.remove('active');
+        navProposal.classList.remove('active');
+
+        pageToShow.classList.remove('hidden');
+        navToActivate.classList.add('active');
+        document.getElementById('app-content').scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    navDashboard.addEventListener('click', () => showPage(pageDashboard, navDashboard));
+    navProposal.addEventListener('click', () => showPage(pageProposal, navProposal));
+    heroViewProposalBtn.addEventListener('click', (e) => { e.preventDefault(); showPage(pageProposal, navProposal); });
+
+    // --- WEBSOCKET CONNECTION ---
+    const socketProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const socket = new WebSocket(`${socketProtocol}//${window.location.host}`);
+
+    socket.onopen = () => {
+        console.log('WebSocket connection established.');
+        logEvent('Connected to real-time server.', 'system');
+    };
+
+    socket.onmessage = (message) => {
+        const data = JSON.parse(message.data);
+
+        if (data.type === 'initial_state') {
+            const payload = data.payload || data; 
+            ladles = payload.ladles;
+            plantAreas = payload.plantAreas;
+            initializeDashboard();
+        } else if (data.type === 'update') {
+            handleUpdate(data.event, data.updatedLadle);
+        }
+    };
+
+    socket.onclose = () => {
+        console.log('WebSocket connection closed.');
+        logEvent('Disconnected from server. Trying to reconnect...', 'error');
+        setTimeout(() => {
+            window.location.reload();
+        }, 5000);
+    };
+
+    // --- UI UPDATE FUNCTIONS ---
+    function initializeDashboard() {
+        if (!plantAreas || !ladles) return;
+        plantAreasContainer.innerHTML = plantAreas.map(area => `<div class="card p-4" id="area-${area.replace(/\s+/g, '-')}"><h3 class="font-semibold text-ui-text-primary">${area}</h3><p class="text-xs mt-1 text-ui-text-secondary">LADLES PRESENT:</p><div class="ladle-list text-ui-accent font-semibold mt-2 space-y-1 text-sm"></div></div>`).join('');
+        ladleSelectEl.innerHTML = ladles.map(ladle => `<option value="${ladle.id}">${ladle.id}</option>`).join('');
+        updateUI();
+        displaySelectedLadleJourney();
+    }
+    
+    function handleUpdate(event, updatedLadle) {
+        const ladleIndex = ladles.findIndex(l => l.id === updatedLadle.id);
+        if (ladleIndex !== -1) {
+            ladles[ladleIndex] = updatedLadle;
+        } else {
+            ladles.push(updatedLadle);
+            const option = document.createElement('option');
+            option.value = updatedLadle.id;
+            option.textContent = updatedLadle.id;
+            ladleSelectEl.appendChild(option);
+        }
+
+        let logMessage;
+        if (event.isMatch) {
+            logMessage = `Ladle <span class="font-bold text-white">${event.ladleId}</span> moved: ${event.oldLocation} → <span class="font-bold text-white">${event.newLocation}</span>. 2FA Match.`;
+        } else {
+            logMessage = `MISMATCH on Ladle <span class="font-bold">${event.ladleId}</span> at ${event.newLocation}! RFID=${event.ladleId}, OCR=${event.ocrResult}.`;
+        }
+        logEvent(logMessage, event.type);
+
+        updateUI();
+        if (ladleSelectEl.value === updatedLadle.id) {
+            displaySelectedLadleJourney();
+        }
+    }
+
+    function displaySelectedLadleJourney() {
+        const selectedLadleId = ladleSelectEl.value;
+        const ladle = ladles.find(l => l.id === selectedLadleId);
+        if (ladle && ladle.journey && ladle.journey.length > 0) {
+            journeyTimelineEl.innerHTML = ladle.journey.slice().reverse().map(step => `<div class="border-l-2 pl-3" style="border-color: var(--ui-border);"><p class="font-semibold text-ui-text-primary">${step.location}</p><p class="text-xs text-ui-text-secondary">${step.timestamp}</p></div>`).join('');
+        } else {
+            journeyTimelineEl.innerHTML = `<p class="italic text-ui-text-secondary">No journey data available.</p>`;
+        }
+    }
+
+    function updateUI() {
+        if (!ladles) return;
+        document.querySelectorAll('.ladle-list').forEach(list => list.innerHTML = '');
+        ladles.forEach(ladle => {
+            const areaCard = document.getElementById(`area-${ladle.location.replace(/\s+/g, '-')}`);
+            if (areaCard) {
+                const ladleEl = document.createElement('div');
+                ladleEl.textContent = ladle.id;
+                areaCard.querySelector('.ladle-list').appendChild(ladleEl);
+            }
+        });
+
+        const inCirculation = ladles.filter(l => l.location !== 'Maintenance Yard').length;
+        totalLadlesEl.textContent = ladles.length;
+        inCirculationLadlesEl.textContent = inCirculation;
+        maintenanceLadlesEl.textContent = ladles.length - inCirculation;
+    }
+
+    function logEvent(message, type = 'info') {
+        if (eventLog.querySelector('p.italic')) eventLog.innerHTML = '';
+        const logEntry = document.createElement('div');
+        const timestamp = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        let icon = '';
+        let colorClass = 'text-ui-text-secondary';
+        if (type === 'success') { icon = '<span class="text-ui-success">✅ </span>'; colorClass = 'text-ui-text-primary'; }
+        if (type === 'error') { icon = '<span class="text-ui-warning">⚠️ </span>'; colorClass = 'text-ui-warning'; }
+        if (type === 'system') { icon = 'ℹ️ '; }
+
+        logEntry.className = `p-1 ${colorClass}`;
+        logEntry.innerHTML = `<span class="font-mono text-xs text-ui-text-secondary">[${timestamp}]</span> ${icon}${message}`;
+        eventLog.prepend(logEntry);
+        if (eventLog.children.length > 50) eventLog.lastChild.remove();
+    }
+
+    ladleSelectEl.addEventListener('change', displaySelectedLadleJourney);
+    
+    const footerHTML = `
+        <footer class="mt-12 pt-8 border-t" style="border-color: var(--ui-border);">
+            <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 text-sm">
+                <div class="space-y-4">
+                    <h2 class="text-2xl font-bold text-ui-accent tracking-wider">STEEL FLOW</h2>
+                    <p class="text-ui-text-secondary">An automated system for tracking hot metal and steel by capturing ladle numbers to display real-time location.</p>
+                    <div class="card p-4 flex items-center space-x-4 max-w-xs">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 27 18" width="40"><path fill="#f93" d="M0 0h27v6H0z"/><path fill="#fff" d="M0 6h27v6H0z"/><path fill="#128807" d="M0 12h27v6H0z"/><path fill="#000080" d="M13.5 9a2.25 2.25 0 1 1 0-4.5 2.25 2.25 0 0 1 0 4.5z"/><path fill="#fff" d="M13.5 7.5a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5z"/></svg>
+                        <div><p class="font-semibold">Ministry of Steel</p><p class="text-xs text-ui-text-secondary">Government of India</p></div>
+                    </div>
+                </div>
+                <div class="space-y-4 md:mx-auto">
+                    <h3 class="font-bold tracking-wider uppercase">Explore</h3>
+                    <ul class="space-y-2 text-ui-text-secondary">
+                        <li><a href="#" class="footer-nav-dashboard hover:text-ui-accent">Live Dashboard</a></li>
+                        <li><a href="#" class="footer-nav-proposal hover:text-ui-accent">Project Proposal</a></li>
+                    </ul>
+                </div>
+                <div class="card p-6">
+                    <h3 class="font-bold tracking-wider uppercase">Contact Team Steel Flow</h3>
+                    <div class="mt-4 space-y-2 text-ui-text-secondary">
+                        <p><strong>PS ID:</strong> SIH25187</p>
+                        <p>SSGMCE, Shegaon, Maharashtra, India</p>
+                        <a href="mailto:tayadeatharva12@email.com" class="text-ui-accent hover:underline">tayadeatharva12@email.com</a>
+                    </div>
+                    <h3 class="font-bold tracking-wider uppercase mt-6">Stay Updated</h3>
+                    <div class="mt-2 flex">
+                        <input type="email" id="subscribe-email" placeholder="your.email@domain.com" class="w-full bg-gray-900 border-gray-600 rounded-l-md py-2 px-3 focus:outline-none focus:ring-1 focus:ring-ui-accent text-sm">
+                        <button id="subscribe-button" class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded-r-md transition-colors text-sm">Subscribe</button>
                     </div>
                 </div>
             </div>
-            <div class="p-4 sm:p-6 lg:p-8">
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center max-w-6xl mx-auto">
-                    <div class="stat-card p-4 rounded-lg"><p class="text-2xl font-bold text-orange-500">24/7</p><p class="text-sm text-gray-400">Autonomous Operation</p></div>
-                    <div class="stat-card p-4 rounded-lg"><p class="text-2xl font-bold text-orange-500">99.9%</p><p class="text-sm text-gray-400">Tracking Accuracy</p></div>
-                    <div class="stat-card p-4 rounded-lg"><p class="text-2xl font-bold text-orange-500">2FA</p><p class="text-sm text-gray-400">RFID + AI Vision</p></div>
-                    <div class="stat-card p-4 rounded-lg"><p class="text-2xl font-bold text-orange-500">Low-Cost</p><p class="text-sm text-gray-400">Scalable Hardware</p></div>
-                </div>
-            </div>
-        </div>
-    </section>
+            <div class="mt-8 pt-4 border-t" style="border-color: var(--ui-border);"><div class="text-center text-xs text-ui-text-secondary"><p>© 2025 Steel Flow • Smart India Hackathon 2025</p><p class="mt-1">Developed by <span class="font-semibold">Team Steel Flow</span></p></div></div>
+        </footer>`;
+    appFooter.innerHTML = footerHTML;
 
-    <div id="app-content" class="p-4 sm:p-6 lg:p-8">
-        <header class="flex flex-col sm:flex-row justify-between items-center pb-6">
-            <div>
-                <h1 class="text-3xl font-bold header-title tracking-wider">STEEL FLOW</h1>
-                <p class="text-sm text-gray-400">Smart Ladle Management System</p>
-            </div>
-            <nav class="flex items-center space-x-2 sm:space-x-4 mt-4 sm:mt-0">
-                <button id="nav-proposal" class="nav-link">Project Proposal</button>
-                <button id="nav-dashboard" class="nav-link active"><span class="flex items-center"><div class="w-2 h-2 rounded-full bg-green-500 mr-2"></div>Live Dashboard</span></button>
-            </nav>
-        </header>
+    // --- NEW FOOTER INTERACTIVITY ---
+    function setupFooterInteractivity() {
+        // Dashboard/Proposal links in footer
+        document.querySelectorAll('.footer-nav-dashboard').forEach(el => el.addEventListener('click', (e) => { e.preventDefault(); showPage(pageDashboard, navDashboard) }));
+        document.querySelectorAll('.footer-nav-proposal').forEach(el => el.addEventListener('click', (e) => { e.preventDefault(); showPage(pageProposal, navProposal) }));
 
-        <main class="flex-grow pt-6 border-t" style="border-color: var(--ui-border);">
-            <div id="dashboard-page">
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div class="lg:col-span-2">
-                        <h2 class="section-title mb-4">PLANT OVERVIEW</h2>
-                        <div id="plant-areas" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
-                    </div>
-                    <div class="space-y-6">
-                        <div class="card">
-                            <h3 class="section-title mb-4">Live Fleet Statistics</h3>
-                            <div class="space-y-4 text-sm">
-                                <div class="flex justify-between items-center"><span class="text-ui-text-secondary">Total Ladles</span><span id="total-ladles" class="text-xl font-bold text-ui-accent">0</span></div>
-                                <div class="flex justify-between items-center"><span class="text-ui-text-secondary">In Circulation</span><span id="in-circulation-ladles" class="text-xl font-bold text-ui-success">0</span></div>
-                                <div class="flex justify-between items-center"><span class="text-ui-text-secondary">Maintenance</span><span id="maintenance-ladles" class="text-xl font-bold text-amber-400">0</span></div>
-                            </div>
-                        </div>
-                        <div class="card">
-                            <h3 class="section-title mb-4">Ladle Journey Tracker</h3>
-                            <div>
-                                <label for="ladle-select" class="sr-only">Select a Ladle:</label>
-                                <select id="ladle-select" class="block w-full bg-gray-900 border-gray-600 rounded-md py-2 px-3 focus:outline-none focus:ring-1 focus:ring-ui-accent"></select>
-                            </div>
-                            <div id="journey-timeline" class="mt-4 text-sm space-y-3 max-h-40 overflow-y-auto pr-2"><p class="italic text-ui-text-secondary">Select a ladle.</p></div>
-                        </div>
-                        <div class="card h-96 flex flex-col">
-                            <h3 class="section-title mb-4">Real-time Event Log</h3>
-                            <div id="event-log" class="flex-grow overflow-y-auto space-y-2 pr-2 text-sm"><p class="italic text-ui-text-secondary">Awaiting data...</p></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div id="proposal-page" class="hidden">
-                 <div class="max-w-4xl mx-auto card p-8 space-y-8">
-                    <div class="text-center border-b pb-6" style="border-color: var(--ui-border);">
-                        <h1 class="text-3xl font-bold text-ui-accent">LadleTrack-2FA</h1>
-                        <p class="text-xl mt-1 text-ui-text-secondary">A Two-Factor Authentication Tracking System for Steel Ladles</p>
-                        <p class="mt-4 text-sm"><span class="font-semibold">Theme:</span> Industry 4.0 / Smart Automation | <span class="font-semibold">Category:</span> Software</p>
-                    </div>
-                    <div class="space-y-4"><h2 class="text-2xl font-bold text-ui-accent">The Problem & Our Solution</h2><p class="text-ui-text-secondary"><strong class="text-red-500">The Problem:</strong> Manual ladle tracking is dangerous and unreliable. Single-technology automated systems (like just RFID or just cameras) are vulnerable to single points of failure, such as a damaged tag or an unreadable number, which can lead to costly mix-ups.</p><p class="text-ui-text-secondary"><strong class="text-green-500">Our Solution:</strong> A network of intelligent "Smart Stations" that uses a two-factor authentication (2FA) process to guarantee the correct identification and location of every ladle, every time.</p></div>
-                    <div class="space-y-4 pt-6 border-t" style="border-color: var(--ui-border);"><h3 class="text-xl font-bold text-ui-accent">How It Works (Two-Factor Authentication)</h3><ul class="list-disc list-inside space-y-2 text-ui-text-secondary"><li><strong class="text-ui-text-primary">Factor 1: RFID Identification (Primary ID):</strong> Each ladle is fitted with a passive, battery-free, Industrial High-Temperature UHF RFID Tag. This provides a fast, reliable, all-weather primary identification.</li><li><strong class="text-ui-text-primary">Factor 2: Visual Verification (Secondary ID):</strong> Each "Smart Station" is also equipped with an ESP32-CAM. This low-cost camera captures an image of the ladle's painted number for AI-powered visual confirmation.</li></ul><p class="text-ui-text-secondary mt-4"><strong class="text-ui-text-primary">The Process:</strong> When a ladle passes a station, the system reads both the RFID tag and the painted number. The data is sent to a cloud backend where the two IDs are cross-referenced. A match provides 100% confirmation, while a mismatch triggers an immediate alert. No expensive on-site server is required.</p><p class="text-ui-text-secondary mt-4"><strong class="text-ui-text-primary">Innovation:</strong> Our solution introduces a novel two-factor authentication approach to industrial asset tracking. By cross-validating a robust electronic ID (RFID) with a visual ID (camera OCR), we create a "digital cross-check" system that is far more reliable and error-proof than any single-method solution, all while maintaining an extremely low cost.</p></div>
-                    <div class="space-y-4 pt-6 border-t" style="border-color: var(--ui-border);"><h2 class="text-2xl font-bold text-ui-accent">Technical Architecture & Workflow</h2><div><h3 class="text-lg font-semibold text-ui-text-primary mb-2">Tech Stack:</h3><ul class="list-disc list-inside space-y-2 text-ui-text-secondary"><li><strong>Hardware:</strong> Industrial High-Temperature UHF RFID Tags, Industrial UHF RFID Readers, ESP32 Microcontrollers, ESP32-CAM Modules.</li><li><strong>Cloud & Backend:</strong> Serverless Functions (e.g., AWS Lambda, Vercel Functions), Serverless Database (e.g., Neon).</li><li><strong>AI & Vision:</strong> OpenCV, EasyOCR for character recognition on the cloud backend.</li><li><strong>Frontend:</strong> React.js / Next.js for a live web-based dashboard.</li></ul></div><div class="mt-4"><h3 class="text-lg font-semibold text-ui-text-primary mb-2">System Workflow:</h3><p class="text-ui-text-secondary italic">(A simple flowchart would be placed here illustrating the following 5 steps):</p><ol class="list-decimal list-inside space-y-2 text-ui-text-secondary mt-2"><li><strong>Dual Capture:</strong> A ladle passes a "Smart Station." The station's ESP32 controller simultaneously reads the RFID Tag ID and captures an image of the painted number.</li><li><strong>Transmission:</strong> The ESP32 sends both the RFID ID and the image to a secure cloud endpoint via Wi-Fi.</li><li><strong>Cloud-Side Verification (2FA):</strong> A serverless function is triggered, which looks up the RFID ID in a database and runs OCR on the image.</li><li><strong>Confirmation:</strong> The system compares the two numbers. A match confirms the ladle's identity and updates its location. A mismatch flags an alert.</li><li><strong>Visualization:</strong> The live web dashboard queries the database to display the confirmed, real-time location of all ladles.</li></ol></div></div>
-                    <div class="space-y-4 pt-6 border-t" style="border-color: var(--ui-border);"><h2 class="text-2xl font-bold text-ui-accent">Impact & Viability</h2><div><h3 class="text-lg font-semibold text-ui-text-primary mb-2">Feasibility & Viability:</h3><ul class="list-disc list-inside space-y-2 text-ui-text-secondary"><li><strong>Technically Feasible:</strong> Uses proven industrial RFID and low-cost ESP32-CAMs. AI-based OCR can be run efficiently on a serverless cloud backend.</li><li><strong>Economically Viable:</strong> The two-factor system is achieved with minimal extra cost. The serverless architecture eliminates costly on-site hardware.</li><li><strong>Operationally Viable:</strong> Designed for 24/7 autonomous operation with a built-in fallback if one identification method fails.</li></ul></div><div class="mt-4"><h3 class="text-lg font-semibold text-ui-text-primary mb-2">Impact & Benefits:</h3><ul class="list-disc list-inside space-y-2 text-ui-text-secondary"><li><strong>Enhanced Safety & Error Prevention:</strong> Virtually eliminates ladle mix-ups, preventing accidents and costly production errors.</li><li><strong>Increased Reliability:</strong> More resilient than single-ID methods, ensuring continuous and trustworthy tracking.</li><li><strong>Data-Driven Optimization:</strong> Provides accurate data on ladle cycle times for predictive maintenance and bottleneck identification.</li><li><strong>Low Cost of Entry & Scalability:</strong> The lean, serverless design makes automated tracking accessible without a multi-crore investment.</li></ul></div></div>
-                </div>
-            </div>
-        </main>
-        
-        <div id="app-footer"></div>
+        // Subscription form logic
+        const subscribeButton = document.getElementById('subscribe-button');
+        const subscribeEmail = document.getElementById('subscribe-email');
 
-    </div>
+        if (subscribeButton && subscribeEmail) {
+            subscribeButton.addEventListener('click', () => {
+                const email = subscribeEmail.value;
+                // Simple email validation
+                if (email && email.includes('@')) {
+                    subscribeButton.textContent = 'Subscribed!';
+                    subscribeButton.style.backgroundColor = 'var(--ui-success)';
+                    subscribeButton.disabled = true;
+                    subscribeEmail.value = '';
+                } else {
+                    // Optional: Add feedback for invalid email
+                    subscribeEmail.style.outline = '1px solid var(--ui-warning)';
+                    setTimeout(() => {
+                        subscribeEmail.style.outline = 'none';
+                    }, 2000);
+                }
+            });
+        }
+    }
+    
+    setupFooterInteractivity();
+});
 
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="script.js" defer></script>
-</body>
-</html>
+
