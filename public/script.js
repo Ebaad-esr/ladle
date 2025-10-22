@@ -224,7 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <li><a href="#" class="footer-nav-proposal hover:text-ui-accent">Project Proposal</a></li>
                     </ul>
                 </div>
-                <div class="card p-6 !bg-gray-300">
+                <div class="card p-6 !bg--ui-card-bg">
                     <h3 class="font-bold tracking-wider uppercase">Contact Team Steel Flow</h3>
                     <div class="mt-4 space-y-2 text-ui-text-secondary">
                         <p><strong>PS ID:</strong> SIH25187</p>
@@ -273,6 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeDashboard();
     setInterval(simulateLadleMovement, 3000);
 });
+
 
 
 
