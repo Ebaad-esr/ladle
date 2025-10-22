@@ -212,7 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="space-y-4">
                     <h2 class="text-2xl font-bold text-ui-accent tracking-wider">STEEL FLOW</h2>
                     <p class="text-ui-text-secondary">An automated system for tracking hot metal and steel by capturing ladle numbers to display real-time location.</p>
-                    <div class="card p-4 flex items-center space-x-4 max-w-xs !bg-gray-50">
+                    <div class="card p-4 flex items-center space-x-4 max-w-xs !bg-gray-300">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 27 18" width="40"><path fill="#f93" d="M0 0h27v6H0z"/><path fill="#fff" d="M0 6h27v6H0z"/><path fill="#128807" d="M0 12h27v6H0z"/><path fill="#000080" d="M13.5 9a2.25 2.25 0 1 1 0-4.5 2.25 2.25 0 0 1 0 4.5z"/><path fill="#fff" d="M13.5 7.5a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5z"/></svg>
                         <div><p class="font-semibold">Ministry of Steel</p><p class="text-xs text-ui-text-secondary">Government of India</p></div>
                     </div>
@@ -224,7 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <li><a href="#" class="footer-nav-proposal hover:text-ui-accent">Project Proposal</a></li>
                     </ul>
                 </div>
-                <div class="card p-6 !bg-gray-50">
+                <div class="card p-6 !bg-gray-300">
                     <h3 class="font-bold tracking-wider uppercase">Contact Team Steel Flow</h3>
                     <div class="mt-4 space-y-2 text-ui-text-secondary">
                         <p><strong>PS ID:</strong> SIH25187</p>
@@ -273,6 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeDashboard();
     setInterval(simulateLadleMovement, 3000);
 });
+
 
 
 
