@@ -229,7 +229,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="mt-4 space-y-2 text-ui-text-secondary">
                         <p><strong>PS ID:</strong> SIH25187</p>
                         <p>SSGMCE, Shegaon, Maharashtra, India</p>
-                        <a href="mailto:tayadeatharva12@email.com" class="text-ui-accent hover:underline">tayadeatharva12@email.com</a>
+                        <a href="mailto:tayadeatharva12@gmail.com" class="text-ui-accent hover:underline">tayadeatharva12@gmail.com</a>
                     </div>
                     <h3 class="font-bold tracking-wider uppercase mt-6">Stay Updated</h3>
                     <div class="mt-2 flex">
@@ -273,6 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeDashboard();
     setInterval(simulateLadleMovement, 3000);
 });
+
 
 
 
